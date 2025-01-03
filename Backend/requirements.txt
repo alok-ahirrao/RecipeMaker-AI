@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic
+werkzeug
+ultralytics
+langchain-ollama
+python-multipart
