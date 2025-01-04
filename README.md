@@ -177,7 +177,7 @@ Copyright (c) 2025, Alok Ahirrao
 This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.  
 You may use and modify this project for personal or educational purposes, but commercial use is prohibited without explicit permission.  
 
-For more details, see the [LICENSE](./LICENSE) file or contact alokahirrao.ai@gmail.com .
+For more details, see the [LICENSE](./LICENSE.txt) file or contact alokahirrao.ai@gmail.com .
 
 
 ---
