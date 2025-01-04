@@ -1,3 +1,9 @@
+/* Copyright (c) 2025, Alok Ahirrao
+*This file is part of the Recipe Chatbot project.
+*Licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
+*For details, see the LICENSE file or visit http://creativecommons.org/licenses/by-nc/4.0/.
+*/
+
 import React, { useState } from "react";
 import {
   Box,

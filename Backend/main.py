@@ -1,3 +1,8 @@
+# Copyright (c) 2025, Alok Ahirrao
+# This file is part of the Recipe Chatbot project.
+# Licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
+# For details, see the LICENSE file or visit http://creativecommons.org/licenses/by-nc/4.0/.
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
