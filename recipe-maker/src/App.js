@@ -1,18 +1,13 @@
-/* Copyright (c) 2025, Alok Ahirrao
-*This file is part of the Recipe Chatbot project.
-*Licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
-*For details, see the LICENSE file or visit http://creativecommons.org/licenses/by-nc/4.0/.
-*/
-
 import React, { useState } from "react";
 import {
   Box,
   Typography,
   Avatar,
   Button,
-  CircularProgress,
   TextField,
   IconButton,
+  Paper,
+  Container,
 } from "@mui/material";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -20,6 +15,9 @@ import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
+import ChatIcon from "@mui/icons-material/Chat";
+import ImageIcon from "@mui/icons-material/Image";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 import BotLogo from "./chef-avatar.png";
 import Logo from "./2.png";
 import "./App.css";
@@ -35,7 +33,7 @@ function App() {
   const [dragging, setDragging] = useState(false);
   const [showGenerateButton, setShowGenerateButton] = useState(false);
   const [userQuery, setUserQuery] = useState("");
-  const [chatResponse, setChatResponse] = useState("");
+  const [activeTab, setActiveTab] = useState("chat");
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -62,6 +60,10 @@ function App() {
     const imageUrl = URL.createObjectURL(file);
     setUploadedImage(imageUrl);
     uploadImage(file);
+    // Switch to chat tab on mobile after uploading
+    if (window.innerWidth <= 768) {
+      setActiveTab("chat");
+    }
   };
 
   const uploadImage = async (file) => {
@@ -145,6 +147,11 @@ function App() {
   
       addChatMessage(false, `<h4>Generated Recipe:</h4>${formattedContent}`);
       setShowGenerateButton(false);
+      
+      // Switch to chat tab on mobile after generating recipe
+      if (window.innerWidth <= 768) {
+        setActiveTab("chat");
+      }
     } catch (err) {
       console.error("Error generating recipe:", err.message);
       addChatMessage(false, "Error generating the recipe. Please try again.");
@@ -153,14 +160,14 @@ function App() {
     }
   };
   
-
   const handleChatQuerySubmit = async () => {
     if (!userQuery.trim()) {
-      alert("Please enter a query.");
       return;
     }
 
+    addChatMessage(true, userQuery);
     setLoading(true);
+    
     try {
       const response = await fetch("http://127.0.0.1:8000/chatbot", {
         method: "POST",
@@ -176,13 +183,10 @@ function App() {
       }
 
       const data = await response.json();
-
-      addChatMessage(true, userQuery);
       addChatMessage(false, `<h4>Response:</h4>${data.details.join("<br/>")}`);
-
       setUserQuery("");
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      addChatMessage(false, `Error: ${err.message}. Please try again.`);
       console.error("Error during chat query:", err);
     } finally {
       setLoading(false);
@@ -204,9 +208,14 @@ function App() {
   };
 
   return (
-    <div className="App" onDragOver={handleDragOver} onDrop={handleDrop}>
+    <div 
+      className={`App show-${activeTab}`} 
+      onDragOver={handleDragOver} 
+      onDragLeave={handleDragLeave} 
+      onDrop={handleDrop}
+    >
       <Box className="chat-header">
-        <Avatar src={Logo} />
+        <Avatar src={Logo} sx={{ width: 40, height: 40 }} />
         <Typography variant="h6" className="chat-title">
           Recipe Chatbot
         </Typography>
@@ -214,19 +223,26 @@ function App() {
 
       {dragging && (
         <Box className="drag-overlay">
-          <Typography variant="h5">Drop your image here!</Typography>
+          <Paper 
+            elevation={3} 
+            sx={{ 
+              padding: 4, 
+              backgroundColor: 'rgba(30, 41, 59, 0.9)', 
+              borderRadius: 2,
+              border: '2px dashed #3b82f6'
+            }}
+          >
+            <UploadIcon sx={{ fontSize: 60, color: '#3b82f6', mb: 2 }} />
+            <Typography variant="h5" sx={{ color: 'white' }}>
+              Drop your image here!
+            </Typography>
+          </Paper>
         </Box>
       )}
 
-      <Box className="main-container" display="flex" flexDirection="row">
-        <Box
-          className="chat-container"
-          flex={4}
-          display="flex"
-          flexDirection="column"
-          justifyContent="space-between"
-        >
-          <Box>
+      <Box className="main-container">
+        <Box className="chat-container">
+          <Box sx={{ flexGrow: 1, overflowY: 'auto', mb: 2 }}>
             {chatHistory.map((msg, index) => (
               <Box
                 key={index}
@@ -256,49 +272,32 @@ function App() {
             )}
           </Box>
           {showGenerateButton && ingredients.length > 0 && (
-            <Box className="generate-recipe-btn-chat" mt={2}>
-              <Button
-                variant="contained"
-                className="generate-button"
-                onClick={handleGenerateRecipe}
-                sx={{
-                  marginTop: 2,
-                  backgroundColor: "#4CAF50",
-                  color: "#fff",
-                  "&:hover": { backgroundColor: "#45A049" },
-                }}
-              >
-                Generate Recipe
-              </Button>
-            </Box>
+            <Button
+              variant="contained"
+              className="generate-button"
+              onClick={handleGenerateRecipe}
+              disableElevation
+            >
+              Generate Recipe
+            </Button>
           )}
         </Box>
 
-        <Box className="image-viewer" flex={2} mx={2}>
+        <Box className="image-viewer">
           {uploadedImage ? (
             <img src={uploadedImage} alt="Uploaded" className="uploaded-image" />
           ) : (
-            <Box
-              className="image-placeholder"
-              display="flex"
-              flexDirection="column"
-              alignItems="center"
-              justifyContent="center"
-            >
-              <UploadIcon style={{ fontSize: 80, color: "white", marginBottom: 15 }} />
-              <Typography
-                variant="h6"
-                className="placeholder-text"
-                style={{ color: "white", marginBottom: 15 }}
-              >
-                Upload an image to see it here.
+            <Box className="image-placeholder">
+              <UploadIcon sx={{ fontSize: 60, color: "#3b82f6", mb: 2 }} />
+              <Typography variant="h6" className="placeholder-text">
+                Upload an image of ingredients
               </Typography>
               <Button
                 variant="contained"
-                color="primary"
                 component="label"
                 startIcon={<AddPhotoAlternateIcon />}
                 className="upload-button"
+                disableElevation
               >
                 Upload Image
                 <input
@@ -313,8 +312,8 @@ function App() {
         </Box>
 
         {ingredients.length > 0 && (
-          <Box className="ingredient-list" flex={2} sx={{ padding: 2 }}>
-            <Typography variant="h6">Detected Ingredients:</Typography>
+          <Box className="ingredient-list">
+            <Typography variant="h6">Detected Ingredients</Typography>
             <ul>
               {modifiedIngredients.map((ingredient, index) => (
                 <li key={index}>
@@ -324,61 +323,59 @@ function App() {
                     fullWidth
                     variant="outlined"
                     label={`Ingredient ${index + 1}`}
-                    margin="normal"
+                    margin="dense"
+                    InputProps={{
+                      sx: { color: 'white' }
+                    }}
                   />
                   <IconButton
                     onClick={() => handleRemoveIngredient(index)}
-                    color="secondary"
+                    size="small"
                   >
                     <DeleteIcon />
                   </IconButton>
                 </li>
               ))}
             </ul>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={handleAddIngredient}
-            >
-              Add Ingredient
-            </Button>
-            <Button
-              variant="contained"
-              className="generate-button"
-              onClick={handleGenerateRecipe}
-            >
-              Generate Recipe (List)
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={handleAddIngredient}
+                sx={{ 
+                  flex: 1, 
+                  borderColor: '#3b82f6', 
+                  color: '#3b82f6',
+                  '&:hover': {
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(59, 130, 246, 0.04)'
+                  }
+                }}
+              >
+                Add
+              </Button>
+              <Button
+                variant="contained"
+                className="generate-button"
+                onClick={handleGenerateRecipe}
+                disableElevation
+                sx={{ flex: 1 }}
+              >
+                Generate
+              </Button>
+            </Box>
           </Box>
         )}
       </Box>
 
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          padding: 2,
-          backgroundColor: "#21222b",
-          borderTop: "1px solid #333",
-          borderRadius: "15px",
-          width: "100%",
-          margin: "0 auto",
-        }}
-      >
+      <Box className="input-area">
         <Button
           variant="contained"
-          color="primary"
           component="label"
-          sx={{
-            background: "#1a2e96",
-            padding: "10px 15px",
-            borderRadius: "50%",
-            minWidth: 50,
-            height: 50,
-            marginRight: 2,
-          }}
+          className="input-button"
+          disableElevation
         >
-          <AddPhotoAlternateIcon style={{ fontSize: 28, color: "#fff" }} />
+          <AddPhotoAlternateIcon />
           <input
             type="file"
             accept="image/*"
@@ -389,7 +386,7 @@ function App() {
         <TextField
           fullWidth
           variant="outlined"
-          placeholder="What are you looking for?"
+          placeholder="Ask about recipes, cooking tips, or ingredients..."
           value={userQuery}
           onChange={(e) => setUserQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -397,45 +394,53 @@ function App() {
               handleChatQuerySubmit();
             }
           }}
-          sx={{
-            backgroundColor: "#121212",
-            color: "#fff",
-            borderRadius: "10px",
-            padding: "10px 15px",
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": {
-                borderColor: "#00000",
-              },
-              "&:hover fieldset": {
-                borderColor: "#003a78",
-              },
-              "&.Mui-focused fieldset": {
-                borderColor: "#005bb5",
-              },
-              "& input": {
-                color: "#fff", // Input text color
-              },
-            },
-            "& .MuiInputBase-input::placeholder": {
-              color: "#fff", // Placeholder text color
-            },
+          className="input-field"
+          InputProps={{
+            sx: { 
+              color: 'white',
+              '&::placeholder': {
+                color: 'rgba(255, 255, 255, 0.7)'
+              }
+            }
           }}
         />
         
         <Button
           variant="contained"
           onClick={handleChatQuerySubmit}
-          sx={{
-            background: "#1a2e96",
-            padding: "10px 20px",
-            borderRadius: "25%",
-            minWidth: 50,
-            height: 50,
-            marginLeft: 2,
-          }}
+          className="input-button"
+          disableElevation
+          sx={{ ml: 1 }}
         >
-          <SendIcon style={{ fontSize: 28, color: "#fff" }} />
+          <SendIcon />
         </Button>
+      </Box>
+
+      {/* Mobile Navigation */}
+      <Box className="mobile-nav">
+        <Box 
+          className={`mobile-nav-button ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          <ChatIcon />
+          <Typography variant="caption">Chat</Typography>
+        </Box>
+        <Box 
+          className={`mobile-nav-button ${activeTab === 'image' ? 'active' : ''}`}
+          onClick={() => setActiveTab('image')}
+        >
+          <ImageIcon />
+          <Typography variant="caption">Image</Typography>
+        </Box>
+        {ingredients.length > 0 && (
+          <Box 
+            className={`mobile-nav-button ${activeTab === 'ingredients' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ingredients')}
+          >
+            <ListAltIcon />
+            <Typography variant="caption">Ingredients</Typography>
+          </Box>
+        )}
       </Box>
     </div>
   );

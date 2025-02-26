@@ -1,23 +1,20 @@
-# Copyright (c) 2025, Alok Ahirrao
-# This file is part of the Recipe Chatbot project.
-# Licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
-# For details, see the LICENSE file or visit http://creativecommons.org/licenses/by-nc/4.0/.
-
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-from langchain_ollama import OllamaLLM
 from werkzeug.utils import secure_filename
 import os
 import uuid
+import requests
+import logging
 from pydantic import BaseModel
 from typing import List, Dict
-
+import os
+from dotenv import load_dotenv
 # Initialize FastAPI app
 app = FastAPI()
-
-# Add CORS middleware
+load_dotenv()
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,37 +23,69 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the YOLOv8x model
+# Load YOLOv8x model for ingredient detection
 model = YOLO("yolo_fruits_and_vegetables_v8x.pt")
 
-# Instantiate the Ollama LLM model
-llama_model = OllamaLLM(model="llama3.2:1b")
-
-# Directory to save uploaded images
+# Create uploads folder if not exists
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Define custom state for ingredients and dish
+# Store ingredients and dish state
 app.state.ingredients = []
 app.state.current_dish = ""
 
-# Define a Pydantic model for recipe request
+# ✅ Use environment variables
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")  # Default model if not set
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# ✅ Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# ✅ Define Pydantic Models
 class RecipeRequest(BaseModel):
     ingredients: List[str]
 
-# Define a Pydantic model for chatbot query
 class ChatbotQuery(BaseModel):
     query: str
 
-# Function to make predictions and extract ingredients
+# ✅ Function to call Groq API
+def query_groq(prompt):
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": GROQ_MODEL,  # ✅ Use the correct model from your available list
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+    }
+
+    try:
+        response = requests.post(GROQ_API_URL, json=payload, headers=headers)
+        response_json = response.json()
+
+        # ✅ Log response for debugging
+        logging.info(f"Groq API Response Status: {response.status_code}")
+        logging.info(f"Groq API Response Body: {response_json}")
+
+        if response.status_code == 200 and "choices" in response_json:
+            return response_json["choices"][0]["message"]["content"]
+        else:
+            return f"Error: Unexpected response format: {response_json}"
+
+    except Exception as e:
+        return f"Error calling Groq API: {str(e)}"
+
+# ✅ Function to detect ingredients from an uploaded image
 def predict_image(image_path) -> Dict[str, int]:
     if not os.path.exists(image_path):
-        raise HTTPException(status_code=400, detail=f"The file '{image_path}' does not exist.")
+        raise HTTPException(status_code=400, detail=f"File '{image_path}' not found.")
 
-    # Make predictions
+    # YOLOv8 prediction
     results = model.predict(source=image_path, show=False, save=True)
 
-    # Extract detected ingredients and their counts
+    # Extract detected ingredients
     detections = results[0].boxes.data.cpu().numpy()
     ingredient_counts = {}
 
@@ -67,6 +96,7 @@ def predict_image(image_path) -> Dict[str, int]:
 
     return ingredient_counts
 
+# ✅ API to upload image & detect ingredients
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     if not file.filename:
@@ -75,38 +105,40 @@ async def upload(file: UploadFile = File(...)):
     filename = secure_filename(file.filename)
     file_id = str(uuid.uuid4())
     filepath = os.path.join(UPLOAD_FOLDER, file_id + "_" + filename)
+
     with open(filepath, "wb") as buffer:
         buffer.write(await file.read())
 
-    # Predict ingredients
+    # Detect ingredients
     ingredients = predict_image(filepath)
 
-    # Store detected ingredients in the state
+    # Store detected ingredients
     app.state.ingredients = list(ingredients.keys())
 
     return {"file_id": file_id, "ingredients": ingredients}
 
+# ✅ API to generate a recipe based on detected ingredients
 @app.post("/recipe")
 async def generate_recipe(request: RecipeRequest):
     ingredients = request.ingredients
     if not ingredients:
-        raise HTTPException(status_code=400, detail="Ingredients not provided")
+        raise HTTPException(status_code=400, detail="No ingredients provided")
 
     try:
-        # Update the current dish context
+        # Update dish state
         app.state.current_dish = f"Recipe for ingredients: {', '.join(ingredients)}"
 
         prompt = (
             "You are a world-renowned chef. Based on the given ingredients, "
-            "suggest an excellent recipe that highlights their flavors and can impress anyone.\n\n"
-            f"Ingredients: {', '.join(ingredients)}\n\nAnswer:"
+            "suggest a creative and delicious recipe that enhances their flavors.\n\n"
+            f"Ingredients: {', '.join(ingredients)}\n\nRecipe:"
         )
-        result = llama_model.invoke(input=prompt)
+        result = query_groq(prompt)
 
-        if not result:
-            raise HTTPException(status_code=500, detail="No recipe generated")
+        if "Error:" in result:
+            raise HTTPException(status_code=500, detail=f"Failed to generate recipe: {result}")
 
-        # Format the response for React
+        # Format response
         return {
             "title": f"Recipe for Ingredients: {', '.join(ingredients)}",
             "subsections": [
@@ -117,6 +149,7 @@ async def generate_recipe(request: RecipeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating recipe: {str(e)}")
 
+# ✅ API to handle chatbot queries
 @app.post("/chatbot")
 async def chatbot_response(query: ChatbotQuery):
     user_query = query.query
@@ -124,29 +157,23 @@ async def chatbot_response(query: ChatbotQuery):
         raise HTTPException(status_code=400, detail="Query not provided")
 
     try:
-        # Include context of detected ingredients and the current dish
-        context = "You are an intelligent assistant specializing in culinary arts. "
+        # Add context from detected ingredients & current dish
+        context = "You are a knowledgeable culinary assistant. "
         if app.state.ingredients:
-            context += f"The user has identified the following ingredients: {', '.join(app.state.ingredients)}. "
+            context += f"Detected ingredients: {', '.join(app.state.ingredients)}. "
         if app.state.current_dish:
-            context += f"Currently, the dish being prepared is: {app.state.current_dish}. "
+            context += f"Current dish: {app.state.current_dish}. "
         else:
             context += "No specific dish is being prepared. "
 
-        # Generate the prompt for the model
-        prompt = (
-            f"{context}\n\n"
-            f"User Query: {user_query}\n\n"
-            "Your Response:"
-        )
+        # Generate response using Groq API
+        prompt = f"{context}\n\nUser Query: {user_query}\n\nResponse:"
+        result = query_groq(prompt)
 
-        # Get the response from the LLM
-        result = llama_model.invoke(input=prompt)
+        if "Error:" in result:
+            raise HTTPException(status_code=500, detail=f"Failed to generate response: {result}")
 
-        if not result:
-            raise HTTPException(status_code=500, detail="No response generated")
-
-        # Format the response for React
+        # Format response
         return {
             "title": "Chatbot Response",
             "suggestion": user_query,
@@ -155,6 +182,7 @@ async def chatbot_response(query: ChatbotQuery):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
 
+# ✅ Run FastAPI App
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
