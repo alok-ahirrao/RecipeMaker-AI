@@ -1,26 +1,28 @@
-# Recipe Chatbot
+# **🍽️ Recipe Chatbot (FastAPI + React + Groq API)**  
 
-This repository contains a **Recipe Chatbot** that allows users to upload images of ingredients, detect the ingredients, and generate recipes based on them using AI models like YOLO for image detection and Ollama LLM for recipe generation.
+This repository contains a **Recipe Chatbot** that allows users to upload images of ingredients, detect the ingredients, and generate recipes using AI models like **YOLO for image detection** and **Groq API for recipe generation**.
 
 ---
-## Demo
 
+## **🎥 Demo**
 ![Recipe Chatbot Demo](Output/Recipe%20Chatbot.gif)
 
 ---
 
-## **Project Structure**
+# **📁 Project Structure**
 
 ```
 LLVIS_FRUITS_AND_VEGETABLES
-├── Backend
+├── backend
 │   ├── Recipe_Chatbot/              # Virtual environment folder
 │   ├── uploads/                    # Folder to save uploaded images
 │   ├── runs/                       # YOLO runs folder
 │   ├── main.py                     # FastAPI server
 │   ├── requirements.txt            # Python dependencies
 │   ├── yolo_fruits_and_vegetables_v8x.pt # YOLO model weights
-├── recipe-maker
+│   ├── .env                        # Environment file (API keys)
+│   ├── Procfile                    # Deployment file (optional)
+├── frontend
 │   ├── node_modules/               # React dependencies
 │   ├── public/                     # Static assets
 │   ├── src/                        # React source code
@@ -32,73 +34,112 @@ LLVIS_FRUITS_AND_VEGETABLES
 │   │   ├── 2.png, 7.11.png         # Additional assets
 │   ├── package.json                # React dependencies
 │   ├── package-lock.json           # Lockfile for dependencies
+│   ├── .env                        # Environment file (Backend URL)
 ├── README.md                      # Documentation
 ```
 
 ---
 
-## **Backend (FastAPI)**
+# **🚀 Backend (FastAPI + Groq API)**
 
-### Features:
-
+## **✅ Features**
 - **Image Upload**: Detects ingredients in images using YOLO.
-- **Recipe Generation**: Generates recipes based on detected ingredients using Ollama LLM.
+- **Recipe Generation**: Generates recipes based on detected ingredients using **Groq API**.
 - **Chatbot**: Interactive chatbot to assist users with culinary questions.
-
-### Setup Instructions:
-
-1. Create a virtual environment:
-   ```bash
-   python -m venv Recipe_Chatbot
-   source Recipe_Chatbot/bin/activate  # On Windows: Recipe_Chatbot\Scripts\activate
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Start the Ollama LLM model:
-   ```bash
-   ollama run llama3.2:1b
-   ```
-4. Start the server:
-   ```bash
-   uvicorn main:app --reload
-   ```
-5. Open `http://127.0.0.1:8000/docs` to explore the API documentation.
 
 ---
 
-## **Frontend (React)**
+## **🔧 Setup Instructions**
+### **1️⃣ Install Dependencies**
+```bash
+cd backend
+python -m venv Recipe_Chatbot
+source Recipe_Chatbot/bin/activate  # On Windows: backend\Recipe_Chatbot\Scripts\activate
+pip install -r requirements.txt
+```
 
-### Features:
+### **2️⃣ Setup `.env` File**
+Create a `.env` file in the **backend folder**:
+```
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama3-8b-8192
+```
 
+### **3️⃣ Run FastAPI Server**
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+📌 **Open `http://127.0.0.1:8000/docs` to explore API documentation.**
+
+---
+
+## **🔗 Connecting to Groq API**
+Groq API is used to **generate recipes and chat responses**.  
+Ensure you have a **Groq API key** from [Groq.com](https://console.groq.com/).
+
+### **Backend Code (`main.py`)**
+Modify **`main.py`** to load Groq API key from `.env`:
+```python
+import os
+from dotenv import load_dotenv
+import requests
+
+# Load API key from .env file
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+def query_groq(prompt):
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+    }
+
+    response = requests.post(GROQ_API_URL, json=payload, headers=headers)
+    return response.json()["choices"][0]["message"]["content"]
+```
+
+---
+
+# **💻 Frontend (React)**
+## **✅ Features**
 - Upload images via drag-and-drop or file upload.
 - Displays detected ingredients and allows manual edits.
 - Real-time chat with a recipe chatbot.
-- Dynamic recipe generation with incremental updates.
-
-### Setup Instructions:
-
-1. Navigate to the `recipe-maker` directory:
-   ```bash
-   cd recipe-maker
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm start
-   ```
-4. Open `http://localhost:3000` in your browser.
+- Dynamic recipe generation with AI.
 
 ---
 
-## **Endpoints (Backend)**
+## **🔧 Setup Instructions**
+### **1️⃣ Install Dependencies**
+```bash
+cd frontend
+npm install
+```
+
+### **2️⃣ Setup `.env` File**
+Create a `.env` file in the **frontend folder**:
+```
+REACT_APP_BACKEND_URL=http://127.0.0.1:8000
+```
+
+### **3️⃣ Start React Frontend**
+```bash
+npm start
+```
+📌 **Open `http://localhost:3000` to see your app.**
+
+---
+
+# **📡 API Endpoints (Backend)**
 
 ### `/upload`
-
 - **Method**: POST
 - **Description**: Uploads an image and detects ingredients using YOLO.
 - **Response**:
@@ -110,61 +151,21 @@ LLVIS_FRUITS_AND_VEGETABLES
   ```
 
 ### `/recipe`
-
 - **Method**: POST
-- **Description**: Generates a recipe based on the provided ingredients.
-- **Request**:
-  ```json
-  {
-    "ingredients": ["tomato", "onion"]
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "recipe": "Detailed recipe text here."
-  }
-  ```
+- **Description**: Generates a recipe based on detected ingredients.
 
 ### `/chatbot`
-
 - **Method**: POST
 - **Description**: Responds to user queries in a culinary context.
-- **Request**:
-  ```json
-  {
-    "query": "How to prepare tomato soup?"
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "response": "Step-by-step instructions for tomato soup."
-  }
-  ```
 
 ---
 
-## **Technologies Used**
+# **📌 Summary**
+✅ **Uses Groq API for AI-powered recipe generation**  
+✅ **Uses `.env` for secure API key management**  
+✅ **Fully functional FastAPI backend & React frontend**  
 
-### Backend:
-
-- **FastAPI**: Web framework for API development.
-- **YOLO**: Object detection for ingredient recognition.
-- **Ollama LLM**: AI model for natural language processing.
-
-### Frontend:
-
-- **React**: UI development.
-- **Material-UI**: Component library for styling.
-
----
-
-## **Future Improvements**
-
-- Add more fine-tuned AI models for better recipe generation.
-- Enhance ingredient detection accuracy.
-- Add support for multiple languages.
+🚀 **Your app is now ready for deployment!** Let me know if you need any help! 🔥😊
 
 ---
 
